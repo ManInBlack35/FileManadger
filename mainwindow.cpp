@@ -33,6 +33,7 @@ MainWindow::MainWindow(QWidget *parent) :
 
     QObject::connect(myThread, &QThread::finished, rv, &QObject::deleteLater); //видалення і закриття потоку
 
+    
     QObject::connect(remdialog.data(),SIGNAL( check(const bool &)),
                      this,SLOT (checked(const bool &)));  // зв'язок з діалогом підтвердження
 
@@ -66,7 +67,7 @@ void MainWindow::closeEvent(QCloseEvent *event) //закриття програ�
 
 
 
-MainWindow::~MainWindow()
+MainWindow::~MainWindow() //деструктор
 {
     delete myThread;
     delete ui;
@@ -84,27 +85,27 @@ QString MainWindow::recurs2(QString path) //рекурсія для видале
     if (info.isDir()) //якщо директорія, передивляємося вміст
     {
         QDir dir_rec(path);
-        dir_rec.setSorting(sortf);
+        dir_rec.setSorting(sortf); //сортуєм
         QStringList list_rec(dir_rec.entryList(QDir::AllEntries | QDir::NoDotAndDotDot)); //передивляємося вміст
-        QString path1=dir_rec.canonicalPath();
+        QString path1=dir_rec.canonicalPath(); //запам'ятовуємо шлях окремо
         str.append(path1+"\n");
-        if (list_rec.size()>0)
+        if (list_rec.size()>0) //якщо список не пустий
             for (int i=0; i<list_rec.size();++i)
             {
                 path1=dir_rec.canonicalPath()+"\\"+list_rec[i];
-                str.append(recurs2(path1));
+                str.append(recurs2(path1)); //розгортаємо все дерево файлів та папок
             }
     } else str.append(path+"\n");
     return str;
 }
 
-void MainWindow::Ls_com(QStringList &proper)
+void MainWindow::Ls_com(QStringList &proper) //команда ls - перегляд файлыв та папок
 {
     QString path;
     dir.setSorting(sortf);
     int kil=proper.size()-1; //кількість додаткових аргументів
 
-    myThread->start();
+    myThread->start(); //запускаємо другий потік
 
     if(kil>0 && proper[1][0]=='-') //якщо в нас є якісь прапорці серед аргументів...
     {
@@ -150,14 +151,13 @@ void MainWindow::Ls_com(QStringList &proper)
             {
                 path=dir.canonicalPath()+"\\"+proper[i];
                 int keySort= static_cast <int> (sortf);
-                emit onrecurs(path,lProper,RProper,keySort); // передаємо далі зі збереженням параметрів
+                emit onrecurs(path,lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
                 ++i;
             }while (i<proper.size());
         }else
         {
             int keySort= static_cast <int> (sortf);
-            emit onrecurs(dir.canonicalPath(),lProper,RProper,keySort); //просто додаємо поточну директорію
-            //str.append(recurs(dir.canonicalPath()));
+            emit onrecurs(dir.canonicalPath(),lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
         }
     } else
         if (kil>0) // якщо в нас є ще аргументи, але без прапорців
@@ -167,18 +167,16 @@ void MainWindow::Ls_com(QStringList &proper)
             {
                 path=dir.canonicalPath()+"\\"+proper[i];
                 int keySort= static_cast <int> (sortf);
-                emit onrecurs(path,lProper,RProper,keySort);
-                //str.append(recurs(path));
+                emit onrecurs(path,lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
                 --kil;
                 ++i;
             }while (kil>0);
         }else
         {
             int keySort= static_cast <int> (sortf);
-            emit onrecurs(dir.canonicalPath(),lProper,RProper,keySort);
-            //str.append(recurs(dir.canonicalPath()));
+            emit onrecurs(dir.canonicalPath(),lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
         }
-    RProper=false; //?????
+    RProper=false;  //обнулення прапорців
     lProper=false;
 }
 
@@ -350,29 +348,28 @@ void MainWindow::on_lineEdit_returnPressed() // початок виконанн�
         ui->label->setText(dir.canonicalPath ());
         break;
 
-    case CAT_COM:  //переглянути файл
+    case CAT_COM:  //переглянути файл         !!!не дороблено
     {
         QString fileName;
         if (list_parametrs.size()>1 && list_parametrs[1][0]=='-'
-                && list_parametrs[1][1]=='b') //перевіряємо наявність ключів
+                && list_parametrs[1][1]=='b') //перевіряємо наявність ключа b-вивід в байтовій формі
         {
             bProper=true;
             fileName=dir.canonicalPath ()+'/'+ list_parametrs[2];
         }
         else fileName=dir.canonicalPath ()+'/'+  list_parametrs[1];
-        //QDir asd=dir.current();
-        if(QFile::exists(fileName))
+        if(QFile::exists(fileName)) // перевірка наявності файлу
         {
              QFile file(fileName);
-             if(!file.open(QIODevice::ReadOnly|QIODevice::Text))
+             if(!file.open(QIODevice::ReadOnly|QIODevice::Text)) //пробуєм відкрити файл
              {
 
-                 QString err=file.errorString();
+                 QString err=file.errorString(); //вивід помилки
                  str=err;
                  ui->textEdit->append(str);
                  file.close();
              }
-             else
+             else //якщо все добре, чидаємо полінійно
              {
                  while(!file.atEnd())
                          {
@@ -380,63 +377,63 @@ void MainWindow::on_lineEdit_returnPressed() // початок виконанн�
                              QString str1 = file.readLine();
                              ui->textEdit->append(str1);
                          }
-                 file.close();
+                 file.close(); //закриваєм файл
              }
         }
-        else ui->textEdit->append("error file name");
+        else ui->textEdit->append("error file name"); //якщо не знайдена такого файлу
 
         bProper=false;
     }
         break;
 
     default: //все решта просто спробувати відкрити
-        if (dir.exists(list_parametrs[0]))
+        if (dir.exists(list_parametrs[0])) // якщо існує такий файл чи папка
         {
             QString temp_path(dir.canonicalPath()+'\\'+list_parametrs[0]);
             QFileInfo info (temp_path);
-            if (info.isDir())
+            if (info.isDir()) //якщо директорія пробуєм зайти в неї
             {
                 bool diropen=dir.cd(list_parametrs[0]);
                 if(diropen==false)
                     ui->textEdit->append("No such files or derectory");
                     ui->label->setText(dir.canonicalPath ());
             }
-            else
+            else //якщо виконавча програма, пробуємо запустити (виконати)
             {
                 QString program = dir.canonicalPath ()+"/"+list_parametrs[0];
                 list_parametrs.pop_front();
-                QProcess *myProcess = new QProcess(this);
-                myProcess->start(program,list_parametrs);
+                QProcess *myProcess = new QProcess(this); //створюєм новий процес
+                myProcess->start(program,list_parametrs); //запускаємо програму
             }
-        } else ui->textEdit->append("команда не найдена");
+        } else ui->textEdit->append("команда не найдена"); //на все решту видаємо помилку
         break;
     }
 }
 
-void  MainWindow::keyPressEvent(QKeyEvent *event)
+void  MainWindow::keyPressEvent(QKeyEvent *event) //обробка клавіш
 {
     switch (event->key())
     {
-    case Qt::Key_Up:
+    case Qt::Key_Up: //клавіша вверх
         if (log_curs>0 && log_curs<=log_command.size())
         {
             --log_curs;
-            ui->lineEdit->setText(log_command[log_curs]);
+            ui->lineEdit->setText(log_command[log_curs]); //виводемо раніше введені команди від останьої до першої
         }
         event->accept();
         break;
-    case Qt::Key_Down:
+    case Qt::Key_Down: //клавіша вниз
         if (log_curs>=0 && log_curs<log_command.size()-1)
         {
             ++log_curs;
-            ui->lineEdit->setText(log_command[log_curs]);
+            ui->lineEdit->setText(log_command[log_curs]); //виводемо раніше введені команди від першої до останьої
         }
         event->accept();
         break;
-    case Qt::Key_Escape:
+    case Qt::Key_Escape: //клавіша ESC
         //break;
     default:
-        event->ignore();
+        event->ignore(); //решту ігноруємо
         QWidget::keyPressEvent(event);
     }
 }

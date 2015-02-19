@@ -18,6 +18,7 @@ signals:
     void done (const QString& str);
 
 private:
+    int tab;
     bool RProper;
     bool lProper;
     QDir::SortFlag sortf;
