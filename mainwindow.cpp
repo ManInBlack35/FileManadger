@@ -10,6 +10,7 @@
 #include <QStringList>
 #include <QKeyEvent>
 #include <QThread>
+#include <QVector>
 
 #include "recursiv.h"
 
@@ -27,22 +28,28 @@ MainWindow::MainWindow(QWidget *parent) :
     map [RM_COM]="rm";
     lProper=rProper=sProper=bProper=RProper=fProper=false;
 
+
     rv =new Recursiv; //створюємо об'єкт класу для рекурсії
     myThread = new QThread(); //створюємо об'єкт класу для другого потоку
     rv->moveToThread(myThread);  // відправляємо рекурсію в інший потік
 
     QObject::connect(myThread, &QThread::finished, rv, &QObject::deleteLater); //видалення і закриття потоку
+    QObject::connect(myThread, &QThread::finished, myThread, &QObject::deleteLater); //видалення і закриття потоку
+
+    QObject::connect(this, SIGNAL(onrecurs(const QString &,bool,bool,int)),
+                     rv,SLOT(do_recurs(const QString &,bool,bool,int)));  // зв'язок головного вікна з рекурсією
+
+    QObject::connect(rv, SIGNAL(done ()),
+                     this, SLOT (recursiveslot ())); //завершення рекурсії
+
+    QObject::connect(rv, SIGNAL(toProg(QString)),
+                     this, SLOT (recursiveslot2 (QString))); //зворотній зв'язок рекурсії з головним вікном
 
     
     QObject::connect(remdialog.data(),SIGNAL( check(const bool &)),
                      this,SLOT (checked(const bool &)));  // зв'язок з діалогом підтвердження
 
-    QObject::connect(this, SIGNAL(onrecurs(const QString &,bool,bool,int)),
-                     rv,SLOT(do_recurs(const QString &,bool,bool,int)));  // зв'язок головного вікна з рекурсією
-
-    QObject::connect(rv, SIGNAL(done (const QString&)),
-                     this, SLOT (recursiveslot (const QString&))); //зворотній зв'язок рекурсії з головним вікном
-
+    myThread->start(); //запускаємо другий потік
     sortf=QDir::DirsFirst; // задаємо параметри по замовчуванні
     dir.setCurrent("D:/WorkOther/");
     QString curentpath(dir.canonicalPath ());
@@ -50,17 +57,30 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this); //створюємо головне вікно
     ui->label->setText(curentpath); // вказуємо шлях у лейбі
 
-}
+    ui->progressBar->setMaximum(0);
+    ui->progressBar->setMinimum(0);
+    ui->progressBar->hide();
 
-void MainWindow::recursiveslot (const QString& str)
+
+}
+void MainWindow::recursiveslot2 (const QString& str)
 {
     ui->textEdit->append(str); //вивід на екран результат роботи рекурсії
+}
+
+
+void MainWindow::recursiveslot ()
+{
+    myThread->quit();
+    myThread->wait();
+    ui->progressBar->hide();
+
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) //закриття програми
 {
     if(myThread->isRunning() )
-        myThread->quit();  //закриваємо потік пере закриттям програми
+        myThread->quit();  //закриваємо потік перед закриттям програми
     myThread->wait();
     event->accept();
 }
@@ -103,77 +123,89 @@ void MainWindow::Ls_com(QStringList &proper) //команда ls - перегл�
 {
     QString path;
     dir.setSorting(sortf);
-    int kil=proper.size()-1; //кількість додаткових аргументів
 
-    myThread->start(); //запускаємо другий потік
+    if(!myThread->isRunning() )
+        myThread->start(); //запускаємо другий потік
 
-    if(kil>0 && proper[1][0]=='-') //якщо в нас є якісь прапорці серед аргументів...
+    proper.removeAt(0); //видаляємо перший аргумент, а саме "ls"
+
+    for (int j=0; j<proper.size();++j)
     {
-        kil--; //віднімаєм "-"
-        QString prop=proper[1]; //видділяємо необхідну стрічку
-        int temp=0;
-        if (prop.indexOf('l')>0) //якщо стрічки містить прапорець "l" (розширене представлення)
+        if (proper[j][0]=='-')
         {
-            lProper=true;
+            QString prop=proper[j]; //видділяємо необхідну стрічку
+            proper.removeAt(j);
+            --j;
+            int temp=0;
+            if (prop.indexOf('l')>0) //якщо стрічки містить прапорець "l" (розширене представлення)
+            {
+                lProper=true;
+            }
+            if (prop.indexOf('R')>0) //якщо стрічки містить прапорець "R" (рекурсія)
+            {
+                RProper=true;
+            }
+            temp=prop.indexOf('s'); // шукаємо прапорець "s" (сортування)
+            if (temp>0)
+            {
+                if(temp<prop.size()-1) // якщо в нас після прапорця "s" є ще якісь прапорці сортування
+                    switch (prop[temp+1].toLatin1())
+                    {
+                    case 'n':             // за ім'ям
+                        sortf=QDir::Name;
+                        break;
+                    case 't':            // за датою створення
+                        sortf=QDir::Time;
+                        break;
+                    case 's':           // за розміром
+                        sortf=QDir::Size;
+                        break;
+                    case 'e':          // за типом (розширенням)
+                        sortf=QDir::Type;
+                        break;
+                    default:
+                        sortf=QDir::Name; // якщо невідомі елементи то сортуємо за ім'ям
+                        break;
+                    }
+                else sortf=QDir::DirsFirst; // по замовчуванні спочатку каталоги
+            }
         }
-        if (prop.indexOf('R')>0) //якщо стрічки містить прапорець "R" (рекурсія)
+    }
+        if (proper.size()>0) //якщо ми маємо додаткові аргументи (перечислені директорії/файли)
         {
-            RProper=true;
-        }
-        temp=prop.indexOf('s'); // шукаємо прапорець "s" (сортування)
-        if (temp>0)
-        {
-            if(temp<prop.size()-1) // якщо в нас після прапорця "s" є ще якісь прапорці сортування
-                switch (prop[temp+1].toLatin1()) {
-                case 'n':             // за ім'ям
-                    sortf=QDir::Name;
-                    break;
-                case 't':            // за датою створення
-                    sortf=QDir::Time;
-                    break;
-                case 's':           // за розміром
-                    sortf=QDir::Size;
-                    break;
-                case 'e':          // за типом (розширенням)
-                    sortf=QDir::Type;
-                    break;
-                default:
-                    sortf=QDir::Name; // якщо невідомі елементи то сортуємо за ім'ям
-                    break;
+            while (proper.size()>0)
+            {
+                QFileInfo temp(proper[0]);
+                if (temp.isAbsolute()) //перевіряєм чи шлях є абсолютним
+                {
+                    if (temp.exists()) //якщо існує
+                    {
+                        path=proper[0];
+                        if (!path.endsWith('/') || !path.endsWith('\\'))path+="/"; //доповнення шляху
+                        int keySort= static_cast <int> (sortf);
+                        ui->progressBar->show();
+                        emit onrecurs(path,lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
+                    }
+                    else ui->textEdit->append("not found:"+proper[0]); //якщо не знайшли
                 }
-            else sortf=QDir::DirsFirst; // по замовчуванні спочатку каталоги
-
-        }
-        if (kil>0) //якщо ми маємо додаткові аргументи (перечислені директорії/файли)
-        {
-            int i=2;
-            do
-            {
-                path=dir.canonicalPath()+"\\"+proper[i];
-                int keySort= static_cast <int> (sortf);
-                emit onrecurs(path,lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
-                ++i;
-            }while (i<proper.size());
-        }else
-        {
-            int keySort= static_cast <int> (sortf);
-            emit onrecurs(dir.canonicalPath(),lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
-        }
-    } else
-        if (kil>0) // якщо в нас є ще аргументи, але без прапорців
-        {
-            int i=1;
-            do
-            {
-                path=dir.canonicalPath()+"\\"+proper[i];
-                int keySort= static_cast <int> (sortf);
-                emit onrecurs(path,lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
-                --kil;
-                ++i;
-            }while (kil>0);
-        }else
+                else    //якщо відносний шлях
+                {
+                    path=dir.canonicalPath()+"\\"+proper[0];
+                    QFileInfo temp(path);
+                    if (temp.exists()) //якщо існує
+                    {
+                        int keySort= static_cast <int> (sortf);
+                        ui->progressBar->show();    //викликаємо стрічку прогресу
+                        emit onrecurs(path,lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
+                    }
+                    else ui->textEdit->append("not found:"+proper[0]); //якщо не знайшли
+                }
+                proper.removeFirst();
+            }
+        }else //якщо без аргументів
         {
             int keySort= static_cast <int> (sortf);
+            ui->progressBar->show();    //викликаємо стрічку прогресу
             emit onrecurs(dir.canonicalPath(),lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
         }
     RProper=false;  //обнулення прапорців
@@ -209,7 +241,6 @@ QStringList MainWindow::my_split (QString &str) // розділяє нашу с�
 
     }while (space>=0);
     list.removeAll(""); // видаляємо зі списку пусті поля
-    //list.removeDuplicates ();
     return list;
 }
 
@@ -431,7 +462,8 @@ void  MainWindow::keyPressEvent(QKeyEvent *event) //обробка клавіш
         event->accept();
         break;
     case Qt::Key_Escape: //клавіша ESC
-        //break;
+        recursiveslot ();
+        break;
     default:
         event->ignore(); //решту ігноруємо
         QWidget::keyPressEvent(event);

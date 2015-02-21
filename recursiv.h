@@ -15,7 +15,8 @@ public slots:
     void do_recurs (const QString & path, bool proper1, bool proper2, int sortingprop);
 
 signals:
-    void done (const QString& str);
+    void done ();
+    void toProg (const QString& str);
 
 private:
     int tab;

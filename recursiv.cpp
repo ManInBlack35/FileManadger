@@ -36,7 +36,7 @@ QString Recursiv::ls_print(QString path)
                 tot.setNum(list.size()); //рахуємо загальну кількість файлів та папок
                 str.append("total: "+tot+"\n");
             }
-        }else list.append("");
+        }else list.append(path);
         if (lProper==false)  // якщо виключено детальний вивід
         {
             if (RProper)  // для рекурсії
@@ -67,7 +67,7 @@ QString Recursiv::ls_print(QString path)
         }
         else
         {
-            if (RProper==false)
+            if (RProper==false) // якщо не рекурсія
                 for (int i=0; i<list.size();++i)
                 {
 
@@ -107,6 +107,7 @@ QString Recursiv::ls_print(QString path)
                         else
                         strim<<' '<<dirinfo.fileName ()<<'\n';
                     str.append(str1);
+                    str1.clear();
                 }
         }
 
@@ -181,6 +182,7 @@ QString Recursiv::ls_print(QString path)
                 else
                 strim<<' '<<dirinfo.fileName ()<<'\n';
             str.append(str1);
+            str1.clear();
         }
     str.append("\n");
     return str;
@@ -193,7 +195,8 @@ void Recursiv::do_recurs (const QString & path, bool proper1, bool proper2, int 
     RProper=proper2;
     sortf=static_cast<QDir::SortFlag> (sortingprop);  //пораметр сортування
     filelist=recurs (path);
-    emit done(filelist); //зворотній зв'язок
+    emit toProg(filelist);//зворотній зв'язок
+    emit done();
 }
 
 QString Recursiv::recurs (const QString & path)
@@ -214,10 +217,21 @@ QString Recursiv::recurs (const QString & path)
             for (int j=tab;j>=0;--j)
                 str.append(" │"); // додаємо пропуски перед файлами і папками
             str.replace(str.size()-1,1,"├");
-            str.append("["+info.fileName()+"]"+"\n"); //директорію загортаімо в квадратні дужки
+            if (info.fileName().isEmpty()) str.append("["+path+"]"+"\n"); //директорію загортаємо в квадратні дужки
+            else
+                str.append("["+info.fileName()+"]"+"\n"); //директорію загортаємо в квадратні дужки
             ++tab;
 
 #endif
+
+            /* if (str.size()>50)
+            {
+                emit toProg(str);
+                QThread::msleep(1000);
+                str.clear();
+            }//*/
+
+
             str.append(ls_print(path1));
 
             if (list_rec.size()>0)
@@ -233,7 +247,6 @@ QString Recursiv::recurs (const QString & path)
 
         }else //якщо не рекурсія, просто виводимо
         {
-            QString path=dir_rec.canonicalPath();
             str.append(ls_print(path));
         }
     } else str.append(ls_print(path)); //якщо файл
