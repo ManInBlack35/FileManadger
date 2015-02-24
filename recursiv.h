@@ -12,7 +12,8 @@ public:
     Recursiv();
 
 public slots:
-    void do_recurs (const QString & path, bool proper1, bool proper2, int sortingprop);
+    void do_recurs (const QString &path, bool proper1, bool proper2, int sortingprop);
+    void stop();
 
 signals:
     void done ();
@@ -22,10 +23,12 @@ private:
     int tab;
     bool RProper;
     bool lProper;
+    bool run;
     QDir::SortFlag sortf;
     QString filelist;
-    QString recurs (const QString & path);
-    QString ls_print(QString path);
+    void recurs(const QString & path);
+    void ls_print(QString path);
+    QStringList fileList;
 };
 
 #endif // RECURSIV_H

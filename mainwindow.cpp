@@ -11,6 +11,7 @@
 #include <QKeyEvent>
 #include <QThread>
 #include <QVector>
+#include <QTextCursor>
 
 #include "recursiv.h"
 
@@ -39,6 +40,8 @@ MainWindow::MainWindow(QWidget *parent) :
     QObject::connect(this, SIGNAL(onrecurs(const QString &,bool,bool,int)),
                      rv,SLOT(do_recurs(const QString &,bool,bool,int)));  // зв'язок головного вікна з рекурсією
 
+    QObject::connect(this, SIGNAL(stopProcess()), rv,SLOT(stop()));
+
     QObject::connect(rv, SIGNAL(done ()),
                      this, SLOT (recursiveslot ())); //завершення рекурсії
 
@@ -65,14 +68,18 @@ MainWindow::MainWindow(QWidget *parent) :
 }
 void MainWindow::recursiveslot2 (const QString& str)
 {
+
     ui->textEdit->append(str); //вивід на екран результат роботи рекурсії
+    QTextCursor cursor = ui->textEdit->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    ui->textEdit->setTextCursor(cursor);
 }
 
 
 void MainWindow::recursiveslot ()
 {
-    myThread->quit();
-    myThread->wait();
+    //myThread->quit();
+    //myThread->wait();
     ui->progressBar->hide();
 
 }
@@ -89,7 +96,9 @@ void MainWindow::closeEvent(QCloseEvent *event) //закриття програ�
 
 MainWindow::~MainWindow() //деструктор
 {
-    delete myThread;
+    if(myThread->isRunning() )
+        myThread->quit();  //закриваємо потік перед закриттям програми
+    myThread->wait();
     delete ui;
 }
 
@@ -112,7 +121,7 @@ QString MainWindow::recurs2(QString path) //рекурсія для видале
         if (list_rec.size()>0) //якщо список не пустий
             for (int i=0; i<list_rec.size();++i)
             {
-                path1=dir_rec.canonicalPath()+"\\"+list_rec[i];
+                path1=dir_rec.canonicalPath()+"/"+list_rec[i];
                 str.append(recurs2(path1)); //розгортаємо все дерево файлів та папок
             }
     } else str.append(path+"\n");
@@ -181,7 +190,7 @@ void MainWindow::Ls_com(QStringList &proper) //команда ls - перегл�
                     if (temp.exists()) //якщо існує
                     {
                         path=proper[0];
-                        if (!path.endsWith('/') || !path.endsWith('\\'))path+="/"; //доповнення шляху
+                        if (!path.endsWith('/') || !path.endsWith('/'))path+="/"; //доповнення шляху
                         int keySort= static_cast <int> (sortf);
                         ui->progressBar->show();
                         emit onrecurs(path,lProper,RProper,keySort); //відправляємо в другий потік зі збереженням параметрів
@@ -190,7 +199,7 @@ void MainWindow::Ls_com(QStringList &proper) //команда ls - перегл�
                 }
                 else    //якщо відносний шлях
                 {
-                    path=dir.canonicalPath()+"\\"+proper[0];
+                    path=dir.canonicalPath()+"/"+proper[0];
                     QFileInfo temp(path);
                     if (temp.exists()) //якщо існує
                     {
@@ -302,7 +311,7 @@ void MainWindow::remove_com (QStringList list)          //команда вид�
     while(i<list.size())        //проходимо по елементам списку
     {
         QString path;
-        path=dir.canonicalPath()+'\\'+list[i];
+        path=dir.canonicalPath()+'/'+list[i];
         path=dir.cleanPath(path);
         bool bl=dir.exists(path);  //чи існує такий елемент
         if (bl)
@@ -420,7 +429,7 @@ void MainWindow::on_lineEdit_returnPressed() // початок виконанн�
     default: //все решта просто спробувати відкрити
         if (dir.exists(list_parametrs[0])) // якщо існує такий файл чи папка
         {
-            QString temp_path(dir.canonicalPath()+'\\'+list_parametrs[0]);
+            QString temp_path(dir.canonicalPath()+'/'+list_parametrs[0]);
             QFileInfo info (temp_path);
             if (info.isDir()) //якщо директорія пробуєм зайти в неї
             {
@@ -462,7 +471,8 @@ void  MainWindow::keyPressEvent(QKeyEvent *event) //обробка клавіш
         event->accept();
         break;
     case Qt::Key_Escape: //клавіша ESC
-        recursiveslot ();
+        emit stopProcess();
+        ui->progressBar->hide();
         break;
     default:
         event->ignore(); //решту ігноруємо

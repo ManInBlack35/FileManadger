@@ -30,11 +30,12 @@ private slots:
 
     void on_lineEdit_returnPressed();
     void checked(const bool & ch);
-    void recursiveslot2 (const QString &);
+    void recursiveslot2 (const QString &str);
     void recursiveslot ();
 
 signals:
     void onrecurs (const QString & path, bool proper1, bool proper2, int sortingprop);
+    void stopProcess ();
 
 protected:
     void closeEvent(QCloseEvent *event);
